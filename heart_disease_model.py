@@ -1,4 +1,5 @@
 # Heart Disease Prediction using Bayesian Network
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,12 +10,10 @@ from pgmpy.estimators import MaximumLikelihoodEstimator
 from pgmpy.inference import VariableElimination
 
 # Load the dataset
-df = pd.read_csv("https://bit.ly/3T1A7Rs")
+df = pd.read_csv("heart_disease.csv")  # Use your local file path if needed
 
-# Remove duplicates
+# Remove duplicates and missing values
 df.drop_duplicates(inplace=True)
-
-# Drop rows with missing values
 df.dropna(inplace=True)
 
 # Normalize numeric columns
@@ -22,36 +21,41 @@ numeric_cols = df.select_dtypes(include='number').columns
 scaler = MinMaxScaler()
 df[numeric_cols] = scaler.fit_transform(df[numeric_cols])
 
+# Discretize normalized numeric columns into 5 bins, only if enough unique values
+for col in numeric_cols:
+    if df[col].nunique() >= 5:
+        df[col] = pd.qcut(df[col], q=5, labels=False, duplicates='drop')
+
 # Save cleaned dataset
 df.to_csv("heart_disease_cleaned.csv", index=False)
 
-# Define the structure
-model = BayesianNetwork([
+# Define the Bayesian Network structure
+model = DiscreteBayesianNetwork([
     ("age", "fbs"),
     ("fbs", "target"),
     ("target", "chol"),
     ("target", "thalach")
 ])
 
-# Train the model
+# Fit the model using Maximum Likelihood Estimation
 model.fit(df, estimator=MaximumLikelihoodEstimator)
 
-# Visualize Bayesian Network
+# Visualize the Bayesian Network
 plt.figure(figsize=(6, 4))
-nx.draw(model, with_labels=True, node_size=2000, node_color='lightblue', font_size=10)
+G = nx.DiGraph()
+G.add_edges_from(model.edges())
+nx.draw(G, with_labels=True, node_size=2000, node_color='lightblue', font_size=10)
 plt.title("Bayesian Network for Heart Disease")
 plt.savefig("bn_visualization.png")
 plt.show()
 
-# Inference
+# Perform inference
 infer = VariableElimination(model)
 
-# Example Inference 1: P(target | age=0.6)
-print("P(target | age=0.6)")
-print(infer.query(["target"], evidence={"age": 0.6}))
+# Inference 1: Probability of heart disease for age bin 2
+print("\nP(target | age = 2):")
+print(infer.query(["target"], evidence={"age": 2}))
 
-# Example Inference 2: P(chol | target=1)
-print("P(chol | target=1)")
+# Inference 2: Cholesterol distribution given heart disease
+print("\nP(chol | target = 1):")
 print(infer.query(["chol"], evidence={"target": 1}))
-
-
